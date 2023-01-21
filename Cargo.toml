@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+csv = "1"
 embedded-hal = "0.2"
 embedded-hal-vcd = "0.2"
 embedded-time = "0.12"
+serde = { version = "1", features = ["derive"] }
