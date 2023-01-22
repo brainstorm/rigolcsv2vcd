@@ -3,7 +3,6 @@ use serde::{self, Deserialize};
 use std::error::Error;
 
 use embedded_hal_vcd::{self, writer::VcdWriterBuilder};
-use embedded_time::duration::Extensions;
 use std::fs::File;
 use std::io::{self, BufWriter};
 
@@ -17,7 +16,11 @@ struct RigolCSV {
     d15_d8: String,
 }
 
-fn read_rigol_csv() -> Result<(), Box<dyn Error>> {
+fn _parse_la_signal_group(group1: f32, group2: f32) {
+    unimplemented!()
+}
+
+fn read_rigol_csv() -> Result<Vec<(u64, u32)>, Box<dyn Error>> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true) // ignore broken header
@@ -26,7 +29,7 @@ fn read_rigol_csv() -> Result<(), Box<dyn Error>> {
     // TODO: Handle CSV when timestamps are in each row (enum/option)
     // Initial timestamp...
     let header = rdr.headers()?.clone();
-    dbg!(&header);    
+    dbg!(&header);
     let t0_header: Vec<&str> = header[3].split('=').collect();
     let t0 = t0_header[1].trim_start().replace('s', "").parse::<f32>()?;
     // ...and increments
@@ -35,16 +38,24 @@ fn read_rigol_csv() -> Result<(), Box<dyn Error>> {
     println!("Initial timestamp {t0} with increments of {tinc} seconds");
 
     let mut t_now: f32;
-    let mut t_csv: f32;
+    let mut t_csv: u64;
+
+    let mut signals: Vec<(u64, u32)> = vec![];
 
     for row in rdr.deserialize().skip(1) {
-        t_now = t0 + tinc;
         let record: RigolCSV = row?;
-        t_csv = record.timestamp.parse::<f32>()?;
-        dbg!(t_now);
-        dbg!(t_csv);
+        // Compare t0+tinc vs timestamp divergence
+        t_now = t0 + tinc;
+        t_csv = record.timestamp.parse::<u64>()?;
+        // dbg!(t_now);
+        // dbg!(t_csv);
+        // Parse digital signal groups
+        let d_group_low = record.d7_d0.parse::<f32>()?.to_bits();
+        let d_group_high = record.d15_d8.parse::<f32>()?.to_bits();
 
-        assert_eq!(t_now, t_csv);
+        let d_all = (d_group_high << 8) + d_group_low;
+        signals.push((t_csv, d_all));
+        //assert_eq!(t_now, t_csv);
         //break;
     }
     // Now do the splitting of wires from its Dx-Dy "bundles"
@@ -60,21 +71,35 @@ fn read_rigol_csv() -> Result<(), Box<dyn Error>> {
     //     // update timestamp for this row
     //     timestamp = timestamp + tinc;
     // }
-    Ok(())
+    Ok(signals)
 }
 
-fn write_vcd() -> Result<(), std::io::Error> {
-    let f2 = BufWriter::new(File::create("data/test2.vcd")?);
-    let mut writer = VcdWriterBuilder::new(f2)?.build()?;
+// fn _write_hal_vcd(signals: Vec<(u64, u32)>) -> Result<(), std::io::Error> {
+//     let f2 = BufWriter::new(File::create("data/test2.vcd")?);
+//     let mut writer = VcdWriterBuilder::new(f2)?;
+//     let mut apin = writer.add_push_pull_pin("reference")?;
 
-    writer.timestamp(1_u32.nanoseconds())?;
-    writer.sample()?;
+//     let mut writer = writer.build()?;
 
-    Ok(())
-}
+//     for signal in signals {
+//         let mut timestamp = signal.0;
+//         writer.timestamp(timestamp);
+
+//         if signal.1 {
+//             apin.set_high()?;
+//         } else {
+//             apin.set_low()?;
+//         }
+
+//         //writer.timestamp(timestamp)?;
+//         writer.sample()?;
+//     }
+
+//     Ok(())
+// }
 
 fn main() -> Result<(), std::io::Error> {
-    read_rigol_csv().unwrap();
-    //write_vcd().unwrap();
+    let sigs = read_rigol_csv().unwrap();
+    //write_hal_vcd(sigs).unwrap();
     Ok(())
 }
