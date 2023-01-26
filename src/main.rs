@@ -1,26 +1,45 @@
 use csv;
-use serde::{self, Deserialize};
-use std::error::Error;
+use bitvec::prelude::*;
+use serde::{self, Deserialize, Serialize};
+use std::{error::Error, fs::File, io::BufWriter, path::PathBuf};
 
-use embedded_hal_vcd::{self, writer::VcdWriterBuilder};
-use std::fs::File;
-use std::io::{self, BufWriter};
+use vcd::{ self, Value, TimescaleUnit };
+use std::io;
 
 #[derive(Debug, Deserialize)]
 struct RigolCSV {
     #[serde(rename = "Time(s)")]
-    timestamp: String,
+    timestamp: String, // TODO: This field can be missing :/
     #[serde(rename = "D7-D0")]
     d7_d0: String, // TODO: Unfortunately those fields are "user-flippable" in order from the scope, i.e: d0_d7 vs d7_d0
     #[serde(rename = "D15-D8")]
     d15_d8: String,
 }
 
-fn _parse_la_signal_group(group1: f32, group2: f32) {
-    unimplemented!()
+#[derive(Debug, Serialize)]
+struct RigolDataSeries {
+    timestamp: f32,
+    signals: u16,
+}
+struct Values {
+    inner: BitVec<Value>
 }
 
-fn read_rigol_csv() -> Result<Vec<(u64, u32)>, Box<dyn Error>> {
+impl From<u16> for Values {
+    fn from(v: u16) -> Values {
+        let bitslice = bitvec![u16, Lsb0; 0; 16];
+        for bit in bitslice {
+            if bit {
+                bitslice.push(Value::V1);
+            } else {
+                bitslice.push(Value::V0);
+            }
+        }
+        Values { inner: bitslice }
+    }
+}
+
+fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true) // ignore broken header
@@ -37,69 +56,56 @@ fn read_rigol_csv() -> Result<Vec<(u64, u32)>, Box<dyn Error>> {
     let tinc = tinc_header[1].trim_start().parse::<f32>()?;
     println!("Initial timestamp {t0} with increments of {tinc} seconds");
 
-    let mut t_now: f32;
-    let mut t_csv: u64;
+    let mut _t_now: f32;
+    let mut t_csv: f32;
 
-    let mut signals: Vec<(u64, u32)> = vec![];
+    let mut signals: Vec<RigolDataSeries> = vec![];
 
     for row in rdr.deserialize().skip(1) {
         let record: RigolCSV = row?;
         // Compare t0+tinc vs timestamp divergence
-        t_now = t0 + tinc;
-        t_csv = record.timestamp.parse::<u64>()?;
-        // dbg!(t_now);
-        // dbg!(t_csv);
+        _t_now = t0 + tinc;
+        t_csv = record.timestamp.parse::<f32>()?;
         // Parse digital signal groups
-        let d_group_low = record.d7_d0.parse::<f32>()?.to_bits();
-        let d_group_high = record.d15_d8.parse::<f32>()?.to_bits();
+        let d_group_low = record.d7_d0.parse::<f32>()?;
+        let d_group_high = record.d15_d8.parse::<f32>()?;
 
-        let d_all = (d_group_high << 8) + d_group_low;
-        signals.push((t_csv, d_all));
+        // https://stackoverflow.com/questions/19507730/how-do-i-parse-a-string-to-a-list-of-floats-using-functional-style
+        // https://stackoverflow.com/a/50244328/457116
+        let d_all = ((d_group_high as u16) << 8) | d_group_low as u16;
+        signals.push(RigolDataSeries { timestamp:t_csv, signals: d_all });
         //assert_eq!(t_now, t_csv);
-        //break;
+        //println!("{:b}", d_all);
     }
-    // Now do the splitting of wires from its Dx-Dy "bundles"
-    //let mut timestamp = t0;
-    // for result in rdr.deserialize().skip(1) {
-    //     let row: OrigOscilloscope = result?;
-
-    //     // if rdr.position().line().rem_euclid(8) {
-    //     // // Read D0-D15 field(s), expanding them into the current row, matching its column
-    //     // }
-    //     // println!("{:#?}", row.d7_d0.parse::<f32>()?);
-
-    //     // update timestamp for this row
-    //     timestamp = timestamp + tinc;
-    // }
     Ok(signals)
 }
 
-// fn _write_hal_vcd(signals: Vec<(u64, u32)>) -> Result<(), std::io::Error> {
-//     let f2 = BufWriter::new(File::create("data/test2.vcd")?);
-//     let mut writer = VcdWriterBuilder::new(f2)?;
-//     let mut apin = writer.add_push_pull_pin("reference")?;
+fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error>> {
+    let buf = BufWriter::new(File::create(f)?);
+    let mut writer = vcd::Writer::new(buf);
 
-//     let mut writer = writer.build()?;
+    // Write the header
+    writer.timescale(1, TimescaleUnit::US)?;
+    writer.add_module("top")?;
+    let data = writer.add_wire(16, "data")?;
+    writer.upscope()?;
+    writer.enddefinitions()?;
+  
+    // // Write the initial values
+    // writer.begin(SimulationCommand::Dumpvars)?;
+    // writer.change_vector(data, &[sigs])?;
+    // writer.end()?;
+  
+    // Write the data values
+    for s in sigs {
+      writer.timestamp(s.timestamp as u64)?;
+      writer.change_vector(data, Values::from(s.signals))?;
+    }
+    Ok(())
+}
 
-//     for signal in signals {
-//         let mut timestamp = signal.0;
-//         writer.timestamp(timestamp);
-
-//         if signal.1 {
-//             apin.set_high()?;
-//         } else {
-//             apin.set_low()?;
-//         }
-
-//         //writer.timestamp(timestamp)?;
-//         writer.sample()?;
-//     }
-
-//     Ok(())
-// }
-
-fn main() -> Result<(), std::io::Error> {
-    let sigs = read_rigol_csv().unwrap();
-    //write_hal_vcd(sigs).unwrap();
+fn main() -> Result<(), Box<dyn Error>> {
+    let sigs = read_rigol_csv()?;
+    write_vcd(PathBuf::from("data/test.vcd"), sigs)?;
     Ok(())
 }
