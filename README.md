@@ -1,6 +1,10 @@
 # Rigol CSV to VCD converter
 
-This crate intends to transform the CSV output from a [Rigol PLA2216 logic analyser probe][PLA2216] to [VCD format][VCD]. That is from:
+This crate intends to transform the CSV output from a [Rigol PLA2216 logic analyser probe][PLA2216] to [VCD format][VCD]. From Rigol support:
+
+> The instrument is combining LA channels D0-D7 together, so that channel 0 is bit 0 and channel 7 is bit 7, this would be the same for LA channels D8-D15.
+
+So the goal is to convert this string data:
 
 ```
 Time(s),D7-D0,D15-D8,t0 = -0.01s, tInc = 1e-09,
@@ -9,7 +13,7 @@ Time(s),D7-D0,D15-D8,t0 = -0.01s, tInc = 1e-09,
 (...)
 ```
 
-To this:
+To vectors on the VCD output:
 
 ```
 TBD
