@@ -21,8 +21,9 @@ struct RigolDataSeries {
     timestamp: f32,
     signals: u16,
 }
+
 struct Values {
-    inner: BitVec<Value>
+    inner: BitVec<u16>
 }
 
 impl From<u16> for Values {
@@ -30,9 +31,9 @@ impl From<u16> for Values {
         let bitslice = bitvec![u16, Lsb0; 0; 16];
         for bit in bitslice {
             if bit {
-                bitslice.push(Value::V1);
+                bitslice.push(true);
             } else {
-                bitslice.push(Value::V0);
+                bitslice.push(false);
             }
         }
         Values { inner: bitslice }
@@ -99,7 +100,7 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error
     // Write the data values
     for s in sigs {
       writer.timestamp(s.timestamp as u64)?;
-      writer.change_vector(data, Values::from(s.signals))?;
+      writer.change_vector(data, Values::from(s.signals).try_into()?)?;
     }
     Ok(())
 }
