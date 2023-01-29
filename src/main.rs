@@ -1,8 +1,6 @@
 use csv;
-use bitvec::prelude::*;
 use serde::{self, Deserialize, Serialize};
 use std::{error::Error, fs::File, io::BufWriter, path::PathBuf};
-
 use vcd::{ self, Value, TimescaleUnit };
 use std::io;
 
@@ -23,20 +21,31 @@ struct RigolDataSeries {
 }
 
 struct Values {
-    inner: BitVec<u16>
+    inner: Vec<Value>
+}
+
+struct BitIter(u16);
+impl Iterator for BitIter {
+    type Item = bool;
+    fn next(&mut self) -> Option<bool> {
+        if self.0 == 0 { return None; }
+        let bit = self.0 & 0x8000 == 0x8000;
+        self.0 >>= 1;
+        Some(bit)
+    }
 }
 
 impl From<u16> for Values {
     fn from(v: u16) -> Values {
-        let bitslice = bitvec![u16, Lsb0; 0; 16];
-        for bit in bitslice {
+        let mut out_bits = vec![];
+        for bit in BitIter(v) {
             if bit {
-                bitslice.push(true);
+                out_bits.push(Value::V1);
             } else {
-                bitslice.push(false);
+                out_bits.push(Value::V0);
             }
         }
-        Values { inner: bitslice }
+        Values { inner: out_bits }
     }
 }
 
@@ -100,7 +109,9 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error
     // Write the data values
     for s in sigs {
       writer.timestamp(s.timestamp as u64)?;
-      writer.change_vector(data, Values::from(s.signals).try_into()?)?;
+      let vals = Values::from(s.signals);
+      let the_vals = vals.inner.as_slice();
+      writer.change_vector(data, the_vals)?;
     }
     Ok(())
 }

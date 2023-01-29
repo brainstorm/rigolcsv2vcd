@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitvec = "1.0.1"
+bitvec = { version = "1.0.1" }
 csv = "1"
+num-traits = "0.2.15"
 serde = { version = "1", features = ["derive"] }
 vcd = "0.6.1"
