@@ -3,6 +3,7 @@ use serde::{self, Deserialize, Serialize};
 use std::{error::Error, fs::File, io::BufWriter, path::PathBuf};
 use vcd::{ self, Value, TimescaleUnit };
 use std::io;
+use num_traits::PrimInt;
 
 #[derive(Debug, Deserialize)]
 struct RigolCSV {
@@ -24,21 +25,30 @@ struct Values {
     inner: Vec<Value>
 }
 
-struct BitIter(u16);
-impl Iterator for BitIter {
+/// extremely over engineered bit iterator
+struct BitIter<I>(I, u32);
+impl<I: PrimInt> Iterator for BitIter<I> {
     type Item = bool;
     fn next(&mut self) -> Option<bool> {
-        if self.0 == 0 { return None; }
-        let bit = self.0 & 0x8000 == 0x8000;
-        self.0 >>= 1;
-        Some(bit)
+        (self.1 > 0).then(|| {
+            let bit = self.0 & I::one() == I::one();
+            self.1 -= 1;
+            self.0 = self.0 >> 1_usize;
+            bit
+        })
     }
 }
+trait BitIterExt: PrimInt {
+    fn bit_iter(self) -> BitIter<Self> {
+        BitIter(self.reverse_bits(), Self::zero().leading_zeros())
+    }
+}
+impl<I: PrimInt> BitIterExt for I {}
 
 impl From<u16> for Values {
     fn from(v: u16) -> Values {
         let mut out_bits = vec![];
-        for bit in BitIter(v) {
+        for bit in v.bit_iter() {
             if bit {
                 out_bits.push(Value::V1);
             } else {
