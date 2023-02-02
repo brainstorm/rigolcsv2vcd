@@ -17,7 +17,7 @@ struct RigolCSV {
 
 #[derive(Debug, Serialize)]
 struct RigolDataSeries {
-    timestamp: f32,
+    timestamp: f64,
     signals: u16,
 }
 
@@ -70,14 +70,14 @@ fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
     let header = rdr.headers()?.clone();
     dbg!(&header);
     let t0_header: Vec<&str> = header[3].split('=').collect();
-    let t0 = t0_header[1].trim_start().replace('s', "").parse::<f32>()?;
+    let t0 = t0_header[1].trim_start().replace('s', "").parse::<f64>()?;
     // ...and increments
     let tinc_header: Vec<&str> = header[4].split('=').collect();
-    let tinc = tinc_header[1].trim_start().parse::<f32>()?;
+    let tinc = tinc_header[1].trim_start().parse::<f64>()?;
     println!("Initial timestamp {t0} with increments of {tinc} seconds");
 
-    let mut _t_now: f32;
-    let mut t_csv: f32;
+    let mut _t_now: f64;
+    let mut t_csv: f64;
 
     let mut signals: Vec<RigolDataSeries> = vec![];
 
@@ -85,10 +85,10 @@ fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
         let record: RigolCSV = row?;
         // Compare t0+tinc vs timestamp divergence
         _t_now = t0 + tinc;
-        t_csv = record.timestamp.parse::<f32>()?;
+        t_csv = record.timestamp.parse::<f64>()?;
         // Parse digital signal groups
-        let d_group_low = record.d7_d0.parse::<f32>()?;
-        let d_group_high = record.d15_d8.parse::<f32>()?;
+        let d_group_low = record.d7_d0.parse::<f64>()?;
+        let d_group_high = record.d15_d8.parse::<f64>()?;
 
         // https://stackoverflow.com/questions/19507730/how-do-i-parse-a-string-to-a-list-of-floats-using-functional-style
         // https://stackoverflow.com/a/50244328/457116
@@ -118,10 +118,11 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error
   
     // Write the data values
     for s in sigs {
-      writer.timestamp(s.timestamp as u64)?;
-      let vals = Values::from(s.signals);
-      let the_vals = vals.inner.as_slice();
-      writer.change_vector(data, the_vals)?;
+      let timestamp  = (s.timestamp * 1000000000.0).abs() as u64;
+      let value = Values::from(s.signals).inner;
+
+      writer.timestamp(timestamp)?;
+      writer.change_vector(data, value.as_slice())?;
     }
     Ok(())
 }
