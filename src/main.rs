@@ -59,7 +59,7 @@ impl From<u16> for Values {
     }
 }
 
-fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
+fn read_rigol_csv() -> Result<(Vec<RigolDataSeries>, f64, f64), Box<dyn Error>> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true) // ignore broken header
@@ -97,10 +97,10 @@ fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
         //assert_eq!(t_now, t_csv);
         //println!("{:b}", d_all);
     }
-    Ok(signals)
+    Ok((signals, t0, tinc))
 }
 
-fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error>> {
+fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>, times: (f64, f64)) -> Result<(), Box<dyn Error>> {
     let buf = BufWriter::new(File::create(f)?);
     let mut writer = vcd::Writer::new(buf);
 
@@ -118,7 +118,8 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error
   
     // Write the data values
     for s in sigs {
-      let timestamp  = (s.timestamp * 1000000000.0).abs() as u64;
+      // FIXME: Brilliant, now you have a reversed timescale that programs cannot display, fix it!
+      let timestamp  = (times.0 + s.timestamp * 1000000000.0).abs() as u64;
       let value = Values::from(s.signals).inner;
 
       writer.timestamp(timestamp)?;
@@ -128,7 +129,7 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let sigs = read_rigol_csv()?;
-    write_vcd(PathBuf::from("data/test.vcd"), sigs)?;
+    let (sigs, t0, tinc) = read_rigol_csv()?;
+    write_vcd(PathBuf::from("data/test.vcd"), sigs, (t0, tinc))?;
     Ok(())
 }
