@@ -1,7 +1,7 @@
 use csv;
 use serde::{self, Deserialize, Serialize};
 use std::{error::Error, fs::File, io::BufWriter, path::PathBuf};
-use vcd::{ self, Value, TimescaleUnit };
+use vcd::{ self, Value, TimescaleUnit, SimulationCommand };
 use std::io;
 use num_traits::PrimInt;
 
@@ -112,14 +112,19 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>, times: (f64, f64)) -> Resul
     writer.enddefinitions()?;
   
     // // Write the initial values
-    // writer.begin(SimulationCommand::Dumpvars)?;
-    // writer.change_vector(data, &[sigs])?;
-    // writer.end()?;
+    writer.begin(SimulationCommand::Dumpvars)?;
+    writer.change_vector(data, &Values::from(sigs[0].signals).inner)?;
+    writer.end()?;
   
     // Write the data values
     for s in sigs {
-      // FIXME: Brilliant, now you have a reversed timescale that programs cannot display, fix it!
-      let timestamp  = (times.0 + s.timestamp * 1000000000.0).abs() as u64;
+      // TODO: Tweak that 10000000 with the defined timescale in the header
+      // TODO: Fix the decrementing timescale for negative initial values
+      // assert() that there's strictly incrementing timestamps (monotonic)
+      let offset = (times.0 * 10000000.0) + s.timestamp;
+      dbg!(offset);
+      let timestamp  = ((offset) * 1000000000.0) as u64;
+      dbg!(timestamp);
       let value = Values::from(s.signals).inner;
 
       writer.timestamp(timestamp)?;
