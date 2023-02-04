@@ -111,20 +111,24 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>, times: (f64, f64)) -> Resul
     writer.upscope()?;
     writer.enddefinitions()?;
   
-    // // Write the initial values
+    let first = &sigs[0];
+    let first_value = &Values::from(sigs[0].signals).inner;
+    // Write the initial values
     writer.begin(SimulationCommand::Dumpvars)?;
-    writer.change_vector(data, &Values::from(sigs[0].signals).inner)?;
+    writer.change_vector(data, first_value)?;
     writer.end()?;
   
+    let offset = (first.timestamp * 1000000000.0).abs() as u64;
     // Write the data values
     for s in sigs {
       // TODO: Tweak that 10000000 with the defined timescale in the header
       // TODO: Fix the decrementing timescale for negative initial values
       // assert() that there's strictly incrementing timestamps (monotonic)
-      let offset = (times.0 * 10000000.0) + s.timestamp;
-      dbg!(offset);
-      let timestamp  = ((offset) * 1000000000.0) as u64;
-      dbg!(timestamp);
+      //dbg!(offset);
+      let cur_timestamp = (s.timestamp.abs() * 1000000000.0) as u64;
+      //dbg!(cur_timestamp);
+      let timestamp  = offset - cur_timestamp;
+      //dbg!(timestamp);
       let value = Values::from(s.signals).inner;
 
       writer.timestamp(timestamp)?;
