@@ -24,21 +24,40 @@ Time(s),D7-D0,D15-D8,t0 = -0.01s, tInc = 1e-09,
 (...)
 ```
 
-To vectors on the VCD output:
+To vectors on the VCD output (not necessarily equivalent to the above CSV, just illustrative):
 
 ```
-$timescale 1 us $end
+$timescale 1 ns $end
 $scope module top $end
-$var wire 16 ! data $end
+$var wire 16 # data $end
 $upscope $end
 $enddefinitions $end
-(...)
-b0000000000000010 !
-#0
-b0000000000000010 !
-#0
-b0000000000000010 !
+$dumpvars
+b0000000000000000 #
+$end
+#9999995
+b0000000000000001 #
+#9999996
+b0000000000000010 #
+#9999997
+b0000000000000011 #
+#9999998
+b0000000000000000 #
+#9999999
 ```
+
+## Current status
+
+How it started (Rigol oscilloscope screenshot):
+
+![Rigol oscilloscope 100Hz/200Hz baseline signal gen](./img/100_200Hz_signals_rigol.png)
+
+Hot it's going (VCDs converted from CSV at different timescales):
+
+![Gtkwave reading VCD output 1](./img/gtkwave_baseline_2.png)
+![Gtkwave reading VCD output 2](./img/gtkwave_baseline_3.png)
+
+As one can see, there's still some bugs to iron out (or report upstream).
 
 [PLA2216]: https://rigolshop.eu/accessories/probe/mso5000/pla2216.html
 [VCD]: https://en.wikipedia.org/wiki/Value_change_dump
