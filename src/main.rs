@@ -1,3 +1,4 @@
+#![feature(is_sorted)]
 use csv;
 use serde::{self, Deserialize, Serialize};
 use std::{error::Error, fs::File, io::BufWriter, path::PathBuf};
@@ -15,7 +16,7 @@ struct RigolCSV {
     d15_d8: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Copy)]
 struct RigolDataSeries {
     timestamp: f64,
     signals: u16,
@@ -59,6 +60,15 @@ impl From<u16> for Values {
     }
 }
 
+fn analyse_timeseries(signals: Vec<RigolDataSeries>, _t0: f64, _tinc: f64) {
+    let mut timeseries = vec![];
+    for s in signals {
+        timeseries.push(s.timestamp);
+    }
+
+    assert!(timeseries.is_sorted());
+}
+
 fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -97,6 +107,9 @@ fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
         //assert_eq!(t_now, t_csv);
         //println!("{:b}", d_all);
     }
+
+    analyse_timeseries(signals.clone(), t0, tinc);
+
     Ok(signals)
 }
 
