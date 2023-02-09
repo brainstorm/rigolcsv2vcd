@@ -6,7 +6,6 @@ This (WIP) crate intends to transform the CSV output from a [Rigol PLA2216 logic
 
 ```shell
 cargo run --release < data/test1.csv
-dwfv data/test.vcd
 ```
 
 ## Data inputs/outputs
@@ -47,7 +46,6 @@ b0000000000000000 #
 ```
 
 ## Current status
-
 How it started (Rigol oscilloscope screenshot):
 
 ![Rigol oscilloscope 100Hz/200Hz baseline signal gen](./img/100_200Hz_signals_rigol.png)
