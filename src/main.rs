@@ -64,9 +64,9 @@ fn analyse_timeseries(signals: Vec<RigolDataSeries>, _t0: f64, _tinc: f64) {
     let mut timeseries = vec![];
     for s in signals {
         timeseries.push(s.timestamp);
-        //dbg!(s.timestamp);
     }
 
+    // TODO: Compare precision/accuracy lost with t0/tinc vs real timestamp
     assert!(timeseries.is_sorted());
     // assert_eq!(timeseries.windows(2)
     //             .map(|slice| (slice[0] - slice[1]).abs()), 0.1)
