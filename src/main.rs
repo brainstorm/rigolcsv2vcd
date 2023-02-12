@@ -64,9 +64,12 @@ fn analyse_timeseries(signals: Vec<RigolDataSeries>, _t0: f64, _tinc: f64) {
     let mut timeseries = vec![];
     for s in signals {
         timeseries.push(s.timestamp);
+        //dbg!(s.timestamp);
     }
 
     assert!(timeseries.is_sorted());
+    // assert_eq!(timeseries.windows(2)
+    //             .map(|slice| (slice[0] - slice[1]).abs()), 0.1)
 }
 
 fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
@@ -113,7 +116,7 @@ fn read_rigol_csv() -> Result<Vec<RigolDataSeries>, Box<dyn Error>> {
     Ok(signals)
 }
 
-fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error>> {
+fn write_vcd(f: PathBuf, mut sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error>> {
     let buf = BufWriter::new(File::create(f)?);
     let mut writer = vcd::Writer::new(buf);
 
@@ -132,10 +135,10 @@ fn write_vcd(f: PathBuf, sigs: Vec<RigolDataSeries>) -> Result<(), Box<dyn Error
     writer.end()?;
   
     let offset = (first.timestamp * 1000000000.0).abs() as u64;
+    sigs.dedup_by(|a, b| a.timestamp <= b.timestamp);
     // Write the data values
     for s in sigs {
       // TODO: Tweak that 10000000 with the defined timescale in the header
-      // assert() that there's strictly incrementing timestamps (monotonic)
       let cur_timestamp = (s.timestamp.abs() * 1000000000.0) as u64;
       let timestamp  = offset - cur_timestamp;
       let value = Values::from(s.signals).inner;
