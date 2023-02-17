@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 csv = "1"
 num-traits = "0.2.15"
-serde = { version = "1", features = ["derive"] }
 vcd = "0.6.1"
+regex = "1"
